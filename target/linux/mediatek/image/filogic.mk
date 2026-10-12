@@ -615,16 +615,6 @@ define Device/cmcc_a10-ubootmod
 endef
 TARGET_DEVICES += cmcc_a10-ubootmod
 
-define Device/clx_s20p
-  DEVICE_VENDOR := CLX
-  DEVICE_MODEL := S20P
-  DEVICE_DTS := mt7986a-clx-s20p
-  DEVICE_DTS_DIR := ../dts
-  DEVICE_PACKAGES := kmod-mt7915e kmod-mt7986-firmware mt7986-wo-firmware kmod-usb3 automount
-  IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
-endef
-TARGET_DEVICES += clx_s20p
-
 define Device/philips_hy3000
   DEVICE_VENDOR := Philips
   DEVICE_MODEL := HY3000
@@ -1701,7 +1691,7 @@ define Device/netcore_n60-pro
   BLOCKSIZE := 128k
   PAGESIZE := 2048
   IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
-  DEVICE_PACKAGES := kmod-mt7915e kmod-mt7986-firmware mt7986-wo-firmware kmod-usb3 automount
+  DEVICE_PACKAGES := kmod-mt7915e kmod-mt7986-firmware mt7986-wo-firmware kmod-usb3 automount kmod-usb-ledtrig-usbport
 endef
 TARGET_DEVICES += netcore_n60-pro
 
@@ -1789,6 +1779,19 @@ define Device/nokia_ea0326gmp
   IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
 endef
 TARGET_DEVICES += nokia_ea0326gmp
+
+define Device/nradio_c8-668gl
+  DEVICE_VENDOR := NRadio
+  DEVICE_MODEL := C8-668GL
+  DEVICE_DTS := mt7981b-nradio-c8-668gl
+  DEVICE_DTS_DIR := ../dts
+  DEVICE_PACKAGES :=  \
+	kmod-usb-serial-option kmod-usb-net-cdc-ether kmod-usb-net-qmi-wwan \
+	kmod-usb3 automount
+  IMAGE_SIZE := 131072k
+  IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata | check-size
+endef
+TARGET_DEVICES += nradio_c8-668gl
 
 define Device/openembed_som7981
   DEVICE_VENDOR := OpenEmbed
@@ -2101,6 +2104,37 @@ define Device/sn_r1
 endef
 TARGET_DEVICES += sn_r1
 
+define Device/supergateway_s20-common
+  DEVICE_VENDOR := Super Gateway
+  DEVICE_DTS_DIR := ../dts
+  DEVICE_PACKAGES := kmod-mt7915e kmod-mt7986-firmware mt7986-wo-firmware \
+    kmod-usb3 kmod-nvme kmod-mmc kmod-fs-f2fs kmod-fs-ext4 kmod-fs-vfat \
+    mkf2fs f2fsck e2fsprogs blkid blockdev losetup automount
+  IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
+endef
+
+define Device/supergateway_s20l
+  $(call Device/supergateway_s20-common)
+  DEVICE_MODEL := S20L
+  DEVICE_DTS := mt7986a-supergateway-s20l
+endef
+TARGET_DEVICES += supergateway_s20l
+
+define Device/supergateway_s20m
+  $(call Device/supergateway_s20-common)
+  DEVICE_MODEL := S20M
+  DEVICE_DTS := mt7986a-supergateway-s20m
+  DEVICE_PACKAGES += -kmod-mt7915e -kmod-mt7986-firmware -wpad-openssl
+endef
+TARGET_DEVICES += supergateway_s20m
+
+define Device/supergateway_s20p
+  $(call Device/supergateway_s20-common)
+  DEVICE_MODEL := S20P
+  DEVICE_DTS := mt7986a-supergateway-s20p
+endef
+TARGET_DEVICES += supergateway_s20p
+
 define Device/bt_r320
   DEVICE_VENDOR := BT
   DEVICE_MODEL := BT-R320
@@ -2284,6 +2318,29 @@ define Device/tplink_wma301-ubootmod
   ARTIFACT/bl31-uboot.fip := mt7981-bl31-uboot tplink_wma301
 endef
 TARGET_DEVICES += tplink_wma301-ubootmod
+
+define Device/tplink_wma301_2.1
+  DEVICE_VENDOR := TP-Link
+  DEVICE_MODEL := WMA301 2.1
+  DEVICE_VARIANT := (stock layout)
+  DEVICE_DTS := mt7981b-tplink-wma301_2.1
+  DEVICE_DTS_DIR := ../dts
+  SUPPORTED_DEVICES += mediatek,mt7981-spim-snand-rfb
+  DEVICE_PACKAGES := kmod-mt7915e kmod-mt7981-firmware mt7981-wo-firmware
+  UBINIZE_OPTS := -E 5
+  BLOCKSIZE := 128k
+  PAGESIZE := 2048
+  IMAGE_SIZE := 65536k
+  KERNEL_IN_UBI := 1
+  IMAGES += factory.bin
+  IMAGE/factory.bin := append-ubi | check-size $$$$(IMAGE_SIZE)
+  IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
+  KERNEL = kernel-bin | lzma | \
+	fit lzma $$(KDIR)/image-$$(firstword $$(DEVICE_DTS)).dtb
+  KERNEL_INITRAMFS = kernel-bin | lzma | \
+	fit lzma $$(KDIR)/image-$$(firstword $$(DEVICE_DTS)).dtb with-initrd
+endef
+TARGET_DEVICES += tplink_wma301_2.1
 
 define Device/ubnt_unifi-6-plus
   DEVICE_VENDOR := Ubiquiti
