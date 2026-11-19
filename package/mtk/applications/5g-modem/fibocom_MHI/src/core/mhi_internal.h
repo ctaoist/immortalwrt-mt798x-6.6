@@ -29,6 +29,14 @@ static inline void reinit_completion(struct completion *x)
 }
 #endif
 
+/* All MHI clients are linked into fibo_mhi. Keep the vendor API private
+ * to avoid duplicate exports with the kernel's MHI bus implementation.
+ */
+#ifdef EXPORT_SYMBOL
+#undef EXPORT_SYMBOL
+#define EXPORT_SYMBOL(sym)
+#endif
+
 extern struct bus_type mhi_bus_type;
 
 /* MHI mmio register mapping */

@@ -14,6 +14,7 @@
 #define pr_fmt(fmt) "sipa_dummy: " fmt
 
 #include <linux/module.h>
+#include <linux/version.h>
 #include <linux/kernel.h>
 #include <linux/string.h>
 #include <linux/init.h>
@@ -432,12 +433,17 @@ static int sipa_dummy_probe(struct platform_device *pdev)
 	netdev->irq = 0;
 	netdev->dma = 0;
 	netdev->features &= ~(NETIF_F_IP_CSUM | NETIF_F_IPV6_CSUM | NETIF_F_HW_CSUM);
-	random_ether_addr(netdev->dev_addr);
+	eth_hw_addr_random(netdev);
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+	netif_napi_add_weight(netdev, &sipa_dummy->napi,
+			      sipa_dummy_rx_poll_handler, SIPA_DUMMY_NAPI_WEIGHT);
+#else
 	netif_napi_add(netdev,
 		       &sipa_dummy->napi,
 		       sipa_dummy_rx_poll_handler,
 		       SIPA_DUMMY_NAPI_WEIGHT);
+#endif
 
 	/* Register new Ethernet interface */
 	ret = register_netdev(netdev);

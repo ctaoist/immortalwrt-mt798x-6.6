@@ -37,6 +37,7 @@
 #include <linux/seq_file.h>
 #include <linux/of_device.h>
 #include <linux/version.h>
+#include "../include/sprd_compat.h"
 #if (LINUX_VERSION_CODE > KERNEL_VERSION( 4,4,60 ))
 #include <uapi/linux/sched/types.h>
 #include <linux/sched/task.h>
@@ -349,7 +350,7 @@ static void sipa_fill_free_node(struct sipa_skb_receiver *receiver, u32 cnt)
 }
 
 static void sipa_receiver_notify_cb(void *priv, enum sipa_irq_evt_type evt,
-				    unsigned long data)
+				    u32 data)
 {
 	struct sipa_core *ctrl = sipa_get_ctrl_pointer();
 	struct sipa_skb_receiver *receiver = (struct sipa_skb_receiver *)priv;
@@ -498,7 +499,7 @@ static int fill_recv_thread(void *data)
 	struct sched_param param = {.sched_priority = 92};
 	unsigned long flags;
 
-	sched_setscheduler(current, SCHED_RR, &param);
+	sprd_sched_setscheduler(current, SCHED_RR, &param);
 
 	while (!kthread_should_stop()) {
 		ret = wait_event_interruptible(receiver->fill_recv_waitq,
@@ -572,7 +573,7 @@ static void sipa_receiver_init(struct sipa_skb_receiver *receiver, u32 rsvd)
 		 receiver->ep->recv_fifo->rx_fifo.depth);
 
 	ctrl->cmn_fifo_cfg[fifo_id].irq_cb =
-		(sipa_irq_notify_cb)sipa_receiver_notify_cb;
+		sipa_receiver_notify_cb;
 	ctrl->cmn_fifo_cfg[fifo_id].priv = receiver;
 
 	/* reserve space for dma flushing cache issue */

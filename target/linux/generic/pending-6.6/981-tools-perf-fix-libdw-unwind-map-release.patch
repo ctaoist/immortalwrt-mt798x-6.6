@@ -1,0 +1,25 @@
+Subject: [PATCH] perf unwind: Use available map release helpers in libdw unwinder
+
+Linux 6.6.133 calls map_symbol__exit() when releasing libdw unwind entries,
+but this branch has no definition of that helper. This causes perf to
+fail to link when libdw unwinding is enabled.
+
+Release the map and maps references directly using the helpers available
+in 6.6, balancing the references acquired in entry(). The entries are
+freed immediately afterwards, so their fields do not need to be cleared.
+
+--- a/tools/perf/util/unwind-libdw.c
++++ b/tools/perf/util/unwind-libdw.c
+@@ -319,8 +319,10 @@ int unwind__get_entries(unwind_entry_cb_t
+ 	if (err)
+ 		pr_debug("unwind: failed with '%s'\n", dwfl_errmsg(-1));
+ 
+-	for (i = 0; i < ui->idx; i++)
+-		map_symbol__exit(&ui->entries[i].ms);
++	for (i = 0; i < ui->idx; i++) {
++		map__put(ui->entries[i].ms.map);
++		maps__put(ui->entries[i].ms.maps);
++	}
+ 
+ 	dwfl_end(ui->dwfl);
+ 	free(ui);

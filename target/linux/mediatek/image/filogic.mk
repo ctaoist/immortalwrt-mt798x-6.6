@@ -1,5 +1,13 @@
 DTS_DIR := $(DTS_DIR)/mediatek
 
+# The vendor stack is built once per defconfig, not once per image. Keep
+# unrelated storage/LED/USB packages while replacing the mt76 radio stack.
+define Device/mtwifi
+  DEVICE_PACKAGES := $$(filter-out kmod-mt7915e kmod-mt7981-firmware kmod-mt7986-firmware mt7981-wo-firmware mt7986-wo-firmware kmod-mt_wifi-% kmod-conninfra-% kmod-warp-% wifi-dats-%,$$(DEVICE_PACKAGES))
+  DEVICE_PACKAGES += kmod-mt_wifi-$(1) mtwifi-cfg luci-app-mtwifi-cfg wireless-tools
+  DEVICE_PACKAGES += -kmod-mt7915e -kmod-mt7981-firmware -kmod-mt7986-firmware -mt7981-wo-firmware -mt7986-wo-firmware -wpad-openssl
+endef
+
 define Image/Prepare
 	# For UBI we want only one extra block
 	rm -f $(KDIR)/ubi_mark
@@ -119,6 +127,7 @@ define Device/abt_asr3000
   IMAGES += factory.bin
   IMAGE/factory.bin := append-ubi | check-size $$$$(IMAGE_SIZE)
   IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
+  $(call Device/mtwifi,mt7981-ax3000)
 endef
 TARGET_DEVICES += abt_asr3000
 
@@ -429,6 +438,7 @@ ifneq ($(CONFIG_PACKAGE_airoha-en8811h-firmware),)
 endif
   DEVICE_COMPAT_VERSION := 1.2
   DEVICE_COMPAT_MESSAGE := Flash layout changes require bootloader update
+  $(call Device/mtwifi,mt7986-ax4200)
 endef
 TARGET_DEVICES += bananapi_bpi-r3-mini
 
@@ -506,6 +516,7 @@ define Device/cetron_ct3003
   IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
   IMAGES += factory.bin
   IMAGE/factory.bin := $$(IMAGE/sysupgrade.bin) | cetron-header rd30 CT3003
+  $(call Device/mtwifi,mt7981-ax3000)
 endef
 TARGET_DEVICES += cetron_ct3003
 
@@ -533,6 +544,7 @@ define Device/cetron_ct3003-ubootmod
   ARTIFACT/bl31-uboot.fip := mt7981-bl31-uboot cetron_ct3003
   DEVICE_COMPAT_VERSION := 1.2
   DEVICE_COMPAT_MESSAGE := Flash layout changes require bootloader update
+  $(call Device/mtwifi,mt7981-ax3000)
 endef
 TARGET_DEVICES += cetron_ct3003-ubootmod
 
@@ -555,6 +567,7 @@ define Device/cmcc_a10
 	fit lzma $$(KDIR)/image-$$(firstword $$(DEVICE_DTS)).dtb
   KERNEL_INITRAMFS = kernel-bin | lzma | \
 	fit lzma $$(KDIR)/image-$$(firstword $$(DEVICE_DTS)).dtb with-initrd
+  $(call Device/mtwifi,mt7981-ax3000)
 endef
 TARGET_DEVICES += cmcc_a10
 
@@ -578,6 +591,7 @@ define Device/cmcc_a10-stock
 	fit lzma $$(KDIR)/image-$$(firstword $$(DEVICE_DTS)).dtb
   KERNEL_INITRAMFS = kernel-bin | lzma | \
 	fit lzma $$(KDIR)/image-$$(firstword $$(DEVICE_DTS)).dtb with-initrd
+  $(call Device/mtwifi,mt7981-ax3000)
 endef
 TARGET_DEVICES += cmcc_a10-stock
 
@@ -612,6 +626,7 @@ define Device/cmcc_a10-ubootmod
   ARTIFACT/bl31-uboot.fip := mt7981-bl31-uboot cmcc_a10
   DEVICE_COMPAT_VERSION := 1.2
   DEVICE_COMPAT_MESSAGE := Flash layout changes require bootloader update (for ImmortalWrt 23.05 users)
+  $(call Device/mtwifi,mt7981-ax3000)
 endef
 TARGET_DEVICES += cmcc_a10-ubootmod
 
@@ -662,6 +677,7 @@ define Device/cmcc_rax3000m-emmc-mtk
   KERNEL_INITRAMFS := kernel-bin | lzma | \
 	fit lzma $$(KDIR)/image-$$(firstword $$(DEVICE_DTS)).dtb with-initrd | pad-to 64k
   IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
+  $(call Device/mtwifi,mt7981-ax3000)
 endef
 TARGET_DEVICES += cmcc_rax3000m-emmc-mtk
 
@@ -676,6 +692,7 @@ define Device/cmcc_rax3000m-nand-mtk
   PAGESIZE := 2048
   IMAGE_SIZE := 116736k
   IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
+  $(call Device/mtwifi,mt7981-ax3000)
 endef
 TARGET_DEVICES += cmcc_rax3000m-nand-mtk
 
@@ -687,6 +704,7 @@ define Device/cmcc_rax3000m
   ARTIFACTS += nand-preloader.bin nand-bl31-uboot.fip
   ARTIFACT/nand-preloader.bin := mt7981-bl2 spim-nand-ddr4
   ARTIFACT/nand-bl31-uboot.fip := mt7981-bl31-uboot cmcc_rax3000m-nand
+  $(call Device/mtwifi,mt7981-ax3000)
 endef
 TARGET_DEVICES += cmcc_rax3000m
 
@@ -740,6 +758,7 @@ define Device/cmcc_xr30-stock
   IMAGES += factory.bin
   IMAGE/factory.bin := append-ubi | check-size $$$$(IMAGE_SIZE)
   IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
+  $(call Device/mtwifi,mt7981-ax3000)
 endef
 TARGET_DEVICES += cmcc_xr30-stock
 
@@ -1100,6 +1119,7 @@ define Device/glinet_gl-mt6000
   ARTIFACTS := preloader.bin bl31-uboot.fip
   ARTIFACT/preloader.bin := mt7986-bl2 emmc-ddr4
   ARTIFACT/bl31-uboot.fip := mt7986-bl31-uboot glinet_gl-mt6000
+  $(call Device/mtwifi,mt7986-ax6000)
 endef
 TARGET_DEVICES += glinet_gl-mt6000
 
@@ -1171,6 +1191,7 @@ define Device/h3c_magic-nx30-pro
   ARTIFACTS := preloader.bin bl31-uboot.fip
   ARTIFACT/preloader.bin := mt7981-bl2 spim-nand-ddr3
   ARTIFACT/bl31-uboot.fip := mt7981-bl31-uboot h3c_magic-nx30-pro
+  $(call Device/mtwifi,mt7981-ax3000)
 endef
 TARGET_DEVICES += h3c_magic-nx30-pro
 
@@ -1193,6 +1214,7 @@ define Device/h3c_magic-nx30-pro-nmbm
         fit lzma $$(KDIR)/image-$$(firstword $$(DEVICE_DTS)).dtb
   KERNEL_INITRAMFS = kernel-bin | lzma | \
         fit lzma $$(KDIR)/image-$$(firstword $$(DEVICE_DTS)).dtb with-initrd
+  $(call Device/mtwifi,mt7981-ax3000)
 endef
 TARGET_DEVICES += h3c_magic-nx30-pro-nmbm
 
@@ -1252,6 +1274,7 @@ define Device/huasifei_wh3000-emmc
   KERNEL_INITRAMFS := kernel-bin | lzma | \
 	fit lzma $$(KDIR)/image-$$(firstword $$(DEVICE_DTS)).dtb with-initrd | pad-to 64k
   IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
+  $(call Device/mtwifi,mt7981-ax3000)
 endef
 TARGET_DEVICES += huasifei_wh3000-emmc
 
@@ -1275,6 +1298,7 @@ define Device/imou_lc-hx3001
   ARTIFACTS := preloader.bin bl31-uboot.fip
   ARTIFACT/preloader.bin := mt7981-bl2 spim-nand-ddr3
   ARTIFACT/bl31-uboot.fip := mt7981-bl31-uboot imou_lc-hx3001
+  $(call Device/mtwifi,mt7981-ax3000)
 endef
 TARGET_DEVICES += imou_lc-hx3001
 
@@ -1286,6 +1310,7 @@ define Device/jcg_q30-pro
   BLOCKSIZE := 128k
   PAGESIZE := 2048
   IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
+  $(call Device/mtwifi,mt7981-ax3000)
 endef
 TARGET_DEVICES += jcg_q30-pro
 
@@ -1300,6 +1325,7 @@ define Device/jdcloud_re-cp-03
   KERNEL_INITRAMFS := kernel-bin | lzma | \
         fit lzma $$(KDIR)/image-$$(firstword $$(DEVICE_DTS)).dtb with-initrd | pad-to 64k
   IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
+  $(call Device/mtwifi,mt7986-ax6000)
 endef
 TARGET_DEVICES += jdcloud_re-cp-03
 
@@ -1375,6 +1401,7 @@ define Device/konka_komi-a31
   ARTIFACT/emmc-bl31-uboot.fip := mt7981-bl31-uboot konka_komi-a31-emmc
   ARTIFACT/nor-preloader.bin := mt7981-bl2 nor-ddr3
   ARTIFACT/nor-bl31-uboot.fip := mt7981-bl31-uboot konka_komi-a31-nor
+  $(call Device/mtwifi,mt7981-ax3000)
 endef
 TARGET_DEVICES += konka_komi-a31
 
@@ -1397,6 +1424,7 @@ define Device/livinet_zr-3020
 	fit lzma $$(KDIR)/image-$$(firstword $$(DEVICE_DTS)).dtb
   KERNEL_INITRAMFS = kernel-bin | lzma | \
 	fit lzma $$(KDIR)/image-$$(firstword $$(DEVICE_DTS)).dtb with-initrd
+  $(call Device/mtwifi,mt7981-ax3000)
 endef
 TARGET_DEVICES += livinet_zr-3020
 
@@ -1424,6 +1452,7 @@ define Device/livinet_zr-3020-ubootmod
   ARTIFACT/bl31-uboot.fip := mt7981-bl31-uboot livinet_zr-3020
   DEVICE_COMPAT_VERSION := 1.2
   DEVICE_COMPAT_MESSAGE := Flash layout changes require bootloader update
+  $(call Device/mtwifi,mt7981-ax3000)
 endef
 TARGET_DEVICES += livinet_zr-3020-ubootmod
 
@@ -1866,6 +1895,7 @@ define Device/qihoo_360t7
   BLOCKSIZE := 128k
   PAGESIZE := 2048
   IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
+  $(call Device/mtwifi,mt7981-ax3000)
 endef
 TARGET_DEVICES += qihoo_360t7
 
@@ -1944,6 +1974,7 @@ define Device/ruijie_ew-6000gx-pro
   DEVICE_DTS_DIR := ../dts
   DEVICE_PACKAGES := kmod-phy-airoha-en8811h
   IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
+  $(call Device/mtwifi,mt7975-ipailna-high-power)
 endef
 TARGET_DEVICES += ruijie_ew-6000gx-pro
 
@@ -1955,6 +1986,7 @@ define Device/ruijie_ew-6000gx-pro-expand
   DEVICE_DTS_DIR := ../dts
   DEVICE_PACKAGES := kmod-phy-airoha-en8811h
   IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
+  $(call Device/mtwifi,mt7975-ipailna-high-power)
 endef
 TARGET_DEVICES += ruijie_ew-6000gx-pro-expand
 
@@ -1966,6 +1998,7 @@ define Device/ruijie_ew-6000gx-pro-stock
   DEVICE_DTS_DIR := ../dts
   DEVICE_PACKAGES := kmod-phy-airoha-en8811h
   IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
+  $(call Device/mtwifi,mt7975-ipailna-high-power)
 endef
 TARGET_DEVICES += ruijie_ew-6000gx-pro-stock
 
@@ -1993,6 +2026,7 @@ define Device/ruijie_ew-6000gx-pro-ubootmod
   ARTIFACTS := preloader.bin bl31-uboot.fip
   ARTIFACT/preloader.bin := mt7986-bl2 spim-nand-ddr3
   ARTIFACT/bl31-uboot.fip := mt7986-bl31-uboot ruijie_ew-6000gx-pro
+  $(call Device/mtwifi,mt7975-ipailna-high-power)
 endef
 TARGET_DEVICES += ruijie_ew-6000gx-pro-ubootmod
 
@@ -2004,6 +2038,7 @@ define Device/ruijie_rg-x60-new
   DEVICE_DTS_DIR := ../dts
   DEVICE_PACKAGES := kmod-phy-airoha-en8811h
   IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
+  $(call Device/mtwifi,mt7975-ipailna-high-power)
 endef
 TARGET_DEVICES += ruijie_rg-x60-new
 
@@ -2015,6 +2050,7 @@ define Device/ruijie_rg-x60-new-expand
   DEVICE_DTS_DIR := ../dts
   DEVICE_PACKAGES := kmod-phy-airoha-en8811h
   IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
+  $(call Device/mtwifi,mt7975-ipailna-high-power)
 endef
 TARGET_DEVICES += ruijie_rg-x60-new-expand
 
@@ -2026,6 +2062,7 @@ define Device/ruijie_rg-x60-new-stock
   DEVICE_DTS_DIR := ../dts
   DEVICE_PACKAGES := kmod-phy-airoha-en8811h
   IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
+  $(call Device/mtwifi,mt7975-ipailna-high-power)
 endef
 TARGET_DEVICES += ruijie_rg-x60-new-stock
 
@@ -2053,6 +2090,7 @@ define Device/ruijie_rg-x60-new-ubootmod
   ARTIFACTS := preloader.bin bl31-uboot.fip
   ARTIFACT/preloader.bin := mt7986-bl2 spim-nand-ddr3
   ARTIFACT/bl31-uboot.fip := mt7986-bl31-uboot ruijie_rg-x60-new
+  $(call Device/mtwifi,mt7975-ipailna-high-power)
 endef
 TARGET_DEVICES += ruijie_rg-x60-new-ubootmod
 
@@ -2086,6 +2124,7 @@ define Device/sl_3000-emmc
   KERNEL_INITRAMFS := kernel-bin | lzma | \
 	fit lzma $$(KDIR)/image-$$(firstword $$(DEVICE_DTS)).dtb with-initrd | pad-to 64k
   IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
+  $(call Device/mtwifi,mt7981-ax3000)
 endef
 TARGET_DEVICES += sl_3000-emmc
 
@@ -2227,6 +2266,7 @@ define Device/tplink_tl-xdr6086
   DEVICE_DTS := mt7986a-tplink-tl-xdr6086
   ARTIFACT/bl31-uboot.fip := mt7986-bl31-uboot tplink_tl-xdr6086
   $(call Device/tplink_tl-xdr-common)
+  $(call Device/mtwifi,mt7986-ax6000)
 endef
 TARGET_DEVICES += tplink_tl-xdr6086
 
@@ -2235,6 +2275,7 @@ define Device/tplink_tl-xdr6088
   DEVICE_DTS := mt7986a-tplink-tl-xdr6088
   ARTIFACT/bl31-uboot.fip := mt7986-bl31-uboot tplink_tl-xdr6088
   $(call Device/tplink_tl-xdr-common)
+  $(call Device/mtwifi,mt7986-ax6000)
 endef
 TARGET_DEVICES += tplink_tl-xdr6088
 
@@ -2431,6 +2472,7 @@ ifneq ($(CONFIG_TARGET_ROOTFS_INITRAMFS),)
   ARTIFACT/initramfs-factory.ubi := append-image-stage initramfs-kernel.bin | ubinize-kernel
 endif
   IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
+  $(call Device/mtwifi,mt7981-ax3000)
 endef
 TARGET_DEVICES += xiaomi_mi-router-ax3000t
 
@@ -2448,6 +2490,7 @@ define Device/xiaomi_mi-router-ax3000t-mtkuboot
   IMAGES += factory.bin
   IMAGE/factory.bin := append-ubi | check-size $$$$(IMAGE_SIZE)
   IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
+  $(call Device/mtwifi,mt7981-ax3000)
 endef
 TARGET_DEVICES += xiaomi_mi-router-ax3000t-mtkuboot
 
@@ -2477,6 +2520,7 @@ ifneq ($(CONFIG_TARGET_ROOTFS_INITRAMFS),)
   ARTIFACTS += initramfs-factory.ubi
   ARTIFACT/initramfs-factory.ubi := append-image-stage initramfs-recovery.itb | ubinize-kernel
 endif
+  $(call Device/mtwifi,mt7981-ax3000)
 endef
 TARGET_DEVICES += xiaomi_mi-router-ax3000t-ubootmod
 
@@ -2495,6 +2539,7 @@ ifneq ($(CONFIG_TARGET_ROOTFS_INITRAMFS),)
   ARTIFACT/initramfs-factory.ubi := append-image-stage initramfs-kernel.bin | ubinize-kernel
 endif
   IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
+  $(call Device/mtwifi,mt7981-ax3000)
 endef
 TARGET_DEVICES += xiaomi_mi-router-wr30u-stock
 
@@ -2512,6 +2557,7 @@ ifneq ($(CONFIG_TARGET_ROOTFS_INITRAMFS),)
   ARTIFACT/initramfs-factory.ubi := append-image-stage initramfs-kernel.bin | ubinize-kernel
 endif
   IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
+  $(call Device/mtwifi,mt7981-ax3000)
 endef
 TARGET_DEVICES += xiaomi_mi-router-wr30u-ubootmod
 
@@ -2530,6 +2576,7 @@ ifneq ($(CONFIG_TARGET_ROOTFS_INITRAMFS),)
   ARTIFACT/initramfs-factory.ubi := append-image-stage initramfs-kernel.bin | ubinize-kernel
 endif
   IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
+  $(call Device/mtwifi,mt7986-ax6000)
 endef
 TARGET_DEVICES += xiaomi_redmi-router-ax6000-stock
 
@@ -2547,6 +2594,7 @@ define Device/xiaomi_redmi-router-ax6000-ubootmod
   ARTIFACTS := initramfs-factory.ubi
   ARTIFACT/initramfs-factory.ubi := append-image-stage initramfs-recovery.itb | ubinize-kernel
   IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
+  $(call Device/mtwifi,mt7986-ax6000)
 endef
 TARGET_DEVICES += xiaomi_redmi-router-ax6000-ubootmod
 

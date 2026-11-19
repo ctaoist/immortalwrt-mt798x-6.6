@@ -24,6 +24,7 @@
 #include <linux/seq_file.h>
 #include <linux/of_device.h>
 #include <linux/version.h>
+#include "../include/sprd_compat.h"
 #if (LINUX_VERSION_CODE > KERNEL_VERSION( 4,4,60 ))
 #include <uapi/linux/sched/types.h>
 #include <linux/sched/task.h>
@@ -77,7 +78,7 @@ static void sipa_inform_evt_to_nics(struct sipa_skb_sender *sender,
 }
 
 static void sipa_sender_notify_cb(void *priv, enum sipa_irq_evt_type evt,
-				  unsigned long data)
+				  u32 data)
 {
 	unsigned long flags;
 	struct sipa_skb_sender *sender = (struct sipa_skb_sender *)priv;
@@ -127,7 +128,6 @@ static void sipa_free_sent_items(struct sipa_skb_sender *sender)
 	void __iomem *fifo_base;
 	u32 clr_sts = 0;
 	u32 int_status = 0;
-	u32 read_count = 0;
 
 	num = ctrl->hal_ops.recv_node_from_tx_fifo(ctrl->dev, id,
 						   ctrl->cmn_fifo_cfg, -1);
@@ -289,7 +289,7 @@ static int sipa_free_thread(void *data)
 	enum sipa_cmn_fifo_index id = sender->ep->send_fifo->fifo_id;
     unsigned long flags;
 	struct sipa_nic *iter, *_iter;
-	sched_setscheduler(current, SCHED_RR, &param);
+	sprd_sched_setscheduler(current, SCHED_RR, &param);
 
 	while (!kthread_should_stop()) {
 		wait_event_interruptible(sender->free_waitq,
@@ -333,7 +333,7 @@ void sipa_sender_open_cmn_fifo(struct sipa_skb_sender *sender)
 		return;
 	}
 
-	fifo_cfg->irq_cb = (sipa_irq_notify_cb)sipa_sender_notify_cb;
+	fifo_cfg->irq_cb = sipa_sender_notify_cb;
 	fifo_cfg->priv = sender;
 	ctrl->hal_ops.open(fifo_cfg->fifo_id, ctrl->cmn_fifo_cfg, NULL);
 

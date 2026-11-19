@@ -21,7 +21,7 @@
 -	/*load from request firmware*/
 -	os_load_code_from_bin(ad, &buffer, name, &len);
 -
--	if (len > 0 && buffer != NULL) {
+-	if (buffer != NULL && a <= len && b <= len - a) {
 -		os_move_mem(p, buffer + a, b);
 -	}
 -

@@ -1,5 +1,5 @@
 obj-m := qmi_wwan_m.o
-GobiNet-objs := qmi_wwan_m.o
+qmi_wwan_m-y := qmi_wwan.o
 
 PWD := $(shell pwd)
 OUTPUTDIR=/lib/modules/`uname -r`/kernel/drivers/net/usb/

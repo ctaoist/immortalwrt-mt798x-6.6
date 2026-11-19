@@ -9,21 +9,12 @@ include $(TOPDIR)/rules.mk
 include $(INCLUDE_DIR)/version.mk
 
 PKG_NAME:=wifi-profile
-PKG_RELEASE:=1
+PKG_RELEASE:=2
 PKG_LICENSE:=GPL-2.0
 
-PKG_KCONFIG:= \
-	first_card \
-	first_card_name \
-	second_card \
-	second_card_name \
-	third_card \
-	third_card_name \
-	WIFI_NORMAL_SETTING \
-	WIFI_QUICK_SETTING \
-	MTK_WIFI_SKU_TYPE
+include $(TOPDIR)/package/mtk/mtwifi.mk
 
-PKG_CONFIG_DEPENDS:=$(foreach c, $(PKG_KCONFIG),$(if $(CONFIG_$c),CONFIG_$(c)))
+PKG_BUILD_DIR:=$(BUILD_DIR)/wifi-profile-$(MTWIFI_PROFILE)
 
 include $(INCLUDE_DIR)/package.mk
 
@@ -31,7 +22,7 @@ define Package/wifi-profile
   SECTION:=MTK Properties
   CATEGORY:=MTK Properties
   SUBMENU:=Drivers
-  DEPENDS:=+wifi-dats
+  DEPENDS:=wifi-dats
   TITLE:=MTK WiFi setup scripts
   VERSION:=$(PKG_RELEASE)
   MENU:=1
@@ -60,51 +51,16 @@ if PACKAGE_wifi-profile
 endif
 endef
 
-define Package/wifi-dats
+define Package/wifi-dats/default
   SECTION:=MTK Properties
   CATEGORY:=MTK Properties
   SUBMENU:=Drivers
   TITLE:=MTK WiFi l1 & l2 dat files
   VERSION:=$(PKG_RELEASE)
-  MENU:=1
 endef
 
 define Package/wifi-dats/description
   This package install wifi l1 and l2 dat files.
-endef
-
-define Package/wifi-dats/config
-if PACKAGE_wifi-dats
-	menuconfig first_card
-		bool "1st card"
-		default y
-
-	if first_card
-	config first_card_name
-		string "1st card name"
-		default "MT7981"
-	endif
-
-	menuconfig second_card
-		bool "2nd card"
-		default n
-
-	if second_card
-	config second_card_name
-		string "2nd card name"
-		default "MT7981"
-	endif
-
-	menuconfig third_card
-		bool "3rd card"
-		default n
-
-	if third_card
-	config third_card_name
-		string "3rd card name"
-		default "MT7981"
-	endif
-endif
 endef
 
 define Package/wifi-dats/conffiles
@@ -128,15 +84,15 @@ endef
 
 define Package/wifi-dats/install
 	$(INSTALL_DIR) $(1)/etc/wireless/mediatek/
-	if [ "$$(CONFIG_first_card_name)" = "MT7986" -o "$$(CONFIG_second_card_name)" = "MT7986" ] ; then \
-		if [ "$$(CONFIG_MTK_WIFI_SKU_TYPE)" = "AX4200" ] ; then \
+	if [ "$$(MTWIFI_CONFIG_first_card_name)" = "MT7986" -o "$$(MTWIFI_CONFIG_second_card_name)" = "MT7986" ] ; then \
+		if [ "$$(MTWIFI_CONFIG_MTK_WIFI_SKU_TYPE)" = "AX4200" ] ; then \
 			$(INSTALL_DATA) ./files/mt7986-ax4200/* $(1)/etc/wireless/mediatek/; \
 		else \
 			$(INSTALL_DATA) ./files/mt7986/* $(1)/etc/wireless/mediatek/; \
 		fi ; \
 	fi
 
-	if [ "$$(CONFIG_first_card_name)" = "MT7981" -o "$$(CONFIG_second_card_name)" = "MT7981" ] ; then \
+	if [ "$$(MTWIFI_CONFIG_first_card_name)" = "MT7981" -o "$$(MTWIFI_CONFIG_second_card_name)" = "MT7981" ] ; then \
 		$(INSTALL_DATA) ./files/mt7981/* $(1)/etc/wireless/mediatek/; \
 	fi
 
@@ -145,5 +101,24 @@ define Package/wifi-dats/install
 	fi
 endef
 
-$(eval $(call BuildPackage,wifi-dats))
+define WifiDataVariant
+  define Package/wifi-dats-$(1)
+    $$(Package/wifi-dats/default)
+    TITLE+= ($(1))
+    VARIANT:=$(1)
+    PROVIDES:=wifi-dats
+    CONFLICTS:=$(addprefix wifi-dats-,$(MTWIFI_PREVIOUS_VARIANTS))
+  endef
+  define Package/wifi-dats-$(1)/conffiles
+    $$(Package/wifi-dats/conffiles)
+  endef
+  define Package/wifi-dats-$(1)/install
+    $$(call Package/wifi-dats/install,$$(1))
+  endef
+  $$(eval $$(call BuildPackage,wifi-dats-$(1)))
+  MTWIFI_PREVIOUS_VARIANTS += $(1)
+endef
+# One direction per pair avoids recursive Kconfig dependencies.
+MTWIFI_PREVIOUS_VARIANTS :=
+$(foreach variant,$(MTWIFI_VARIANTS),$(eval $(call WifiDataVariant,$(variant))))
 $(eval $(call BuildPackage,wifi-profile))

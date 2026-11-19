@@ -14,8 +14,26 @@ caldata_validate() {
 	fi
 }
 
+mtwifi_extract_sl3000() {
+	local part image=/tmp/mtwifi-sl3000-eeprom size chip
+
+	[ -f /etc/wireless/l1profile.dat ] || return 0
+	part=$(find_mmc_part factory)
+	[ -n "$part" ] || return 1
+	dd if="$part" of="$image" bs=131072 count=16 2>/dev/null || return 1
+	size=$(wc -c < "$image")
+	[ "$size" -ge 20480 ] || return 1
+	chip=$(hexdump -v -n 2 -e '2/1 "%02x"' "$image")
+	[ "$chip" = "8179" ] || return 1
+	ln -sf "$image" /lib/firmware/e2p
+	ln -sf "$image" /lib/firmware/MT7981_iPAiLNA_EEPROM.bin
+}
+
 do_extract_caldata() {
 	case $(board_name) in
+	sl,3000-emmc)
+		mtwifi_extract_sl3000 || echo "mt_wifi: failed to read SL3000 factory EEPROM" >&2
+		;;
 	cmcc,xr30-emmc |\
 	cmcc,rax3000m-emmc-mtk)
 		FIRMWARE=MT7981_iPAiLNA_EEPROM.bin

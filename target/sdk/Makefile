@@ -18,7 +18,7 @@ SDK_BUILD_DIR:=$(BUILD_DIR)/$(SDK_NAME)
 
 STAGING_SUBDIR_HOST := staging_dir/host
 STAGING_SUBDIR_TARGET := staging_dir/$(TARGET_DIR_NAME)
-STAGING_SUBDIR_TOOLCHAIN := staging_dir/toolchain-$(ARCH)$(ARCH_SUFFIX)_gcc-$(GCCV)_$(LIBC)$(if $(CONFIG_arm),_eabi)
+STAGING_SUBDIR_TOOLCHAIN := staging_dir/$(TOOLCHAIN_DIR_NAME)
 
 BUNDLER_PATH := $(subst $(space),:,$(filter-out $(TOPDIR)/%,$(subst :,$(space),$(PATH))))
 BUNDLER_COMMAND := PATH=$(BUNDLER_PATH) $(XARGS) $(SCRIPT_DIR)/bundle-libraries.sh $(SDK_BUILD_DIR)/$(STAGING_SUBDIR_HOST)
@@ -36,7 +36,23 @@ EXCLUDE_DIRS:= \
 
 SDK_DIRS = \
 		$(STAGING_SUBDIR_HOST) \
-		$(STAGING_SUBDIR_TOOLCHAIN)
+		$(if $(CONFIG_EXTERNAL_TOOLCHAIN),,$(STAGING_SUBDIR_TOOLCHAIN))
+
+# Keep local vendor recipes and their reference configs together. These may
+# contain changes not yet present in the SDK's remote base feed.
+ifeq ($(BOARD)/$(SUBTARGET),mediatek/filogic)
+SDK_DIRS += \
+	package/mtk/mtwifi.mk \
+	package/mtk/applications/mtwifi-cfg \
+	package/mtk/drivers/mt_wifi \
+	package/mtk/drivers/conninfra \
+	package/mtk/drivers/warp \
+	package/mtk/drivers/wifi-profile \
+	defconfig/mt7981-ax3000.config \
+	defconfig/mt7986-ax6000.config \
+	defconfig/mt7986-ax4200-bpir3_mini.config \
+	defconfig/mt7975-ipailna-high-power.config
+endif
 
 GIT_URL:=$(shell git config --get remote.origin.url 2>/dev/null)
 GIT_URL:=$(if $(CONFIG_BUILDBOT),$(filter git://% http://% https://%,$(GIT_URL)),$(GIT_URL))
@@ -120,6 +136,10 @@ $(BIN_DIR)/$(SDK_NAME).tar.zst: clean
 	$(TAR) -cf - -C $(TOPDIR) $(USERSPACE_FILES) | \
 		$(TAR) -xf - -C $(SDK_BUILD_DIR)
 
+ifeq ($(CONFIG_EXTERNAL_TOOLCHAIN),y)
+	python3 ./export-toolchain.py $(TOPDIR)/.config $(SDK_BUILD_DIR) $(STAGING_SUBDIR_TOOLCHAIN)
+endif
+
 	(cd $(SDK_BUILD_DIR); find $(STAGING_SUBDIR_HOST)/bin $(STAGING_SUBDIR_HOST)/usr/bin \
 		$(STAGING_SUBDIR_HOST)/llvm-bpf/bin $(STAGING_SUBDIR_HOST)/llvm-bpf/libexec \
 		$(STAGING_SUBDIR_TOOLCHAIN)/bin $(STAGING_SUBDIR_TOOLCHAIN)/*/bin $(STAGING_SUBDIR_TOOLCHAIN)/libexec \
@@ -148,7 +168,9 @@ $(BIN_DIR)/$(SDK_NAME).tar.zst: clean
 	rm -rf \
 		$(SDK_BUILD_DIR)/target/linux/*/files* \
 		$(SDK_BUILD_DIR)/target/linux/*/patches*
+ifeq ($(CONFIG_EXTERNAL_TOOLCHAIN),)
 	./convert-config.pl $(TOPDIR)/.config > $(SDK_BUILD_DIR)/Config-build.in
+endif
 	$(CP) -L \
 		$(TOPDIR)/LICENSES \
 		$(TOPDIR)/COPYING \

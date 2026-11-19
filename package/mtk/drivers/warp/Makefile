@@ -13,7 +13,11 @@ PKG_VERSION:=20221209-3e6ae1
 MT7981_NEW_WOFW_DIR := mt7981-fw-20231228
 MT7986_NEW_WOFW_DIR := mt7986-fw-20230808
 
-PKG_BUILD_DIR:=$(KERNEL_BUILD_DIR)/$(PKG_NAME)
+include $(TOPDIR)/package/mtk/mtwifi.mk
+
+PKG_RELEASE:=2
+PKG_BUILD_PARALLEL:=1
+PKG_BUILD_DIR:=$(call mtwifi_build_dir,warp)
 PKG_KCONFIG:= \
 	WARP_VERSION \
 	WARP_ATC_SUPPORT \
@@ -25,61 +29,43 @@ PKG_KCONFIG:= \
 	WARP_WO_EMBEDDED_LOAD \
 	WARP_MEMORY_LEAK_DBG
 
-PKG_CONFIG_DEPENDS:=$(foreach c, $(PKG_KCONFIG),$(if $(CONFIG_$c),CONFIG_$(c)))
-
 include $(INCLUDE_DIR)/package.mk
 
 TAR_CMD=$(HOST_TAR) -C $(1)/.. $(TAR_OPTIONS)
 
-define KernelPackage/warp
+define KernelPackage/warp/default
   CATEGORY:=MTK Properties
   TITLE:=MTK warp driver
-  DEPENDS:= +kmod-mediatek_hnat
+  DEPENDS:=@TARGET_mediatek_filogic +kmod-mediatek_hnat
   FILES:=$(PKG_BUILD_DIR)/mtk_warp.ko
   AUTOLOAD:=$(call AutoLoad,60,mtk_warp)
   SUBMENU:=Drivers
-  MENU:=1
 endef
-
-define KernelPackage/warp/config
-	source "$(SOURCE)/config.in"
-endef
-
-
-ifeq ($(CONFIG_WARP_VERSION), 3)
-MTK_WIFI_DIR:=$(TOPDIR)/../ko_module/wlan_driver/logan
-else
-MTK_WIFI_DIR:=$(TOPDIR)/../ko_module/wlan_driver/jedi
-endif
-USE_BIN_DIR:=$(MTK_WIFI_DIR)/warp_driver/bin
 
 define Build/Compile
-	$(MAKE) -C "$(LINUX_DIR)" V=1 \
-		$(KERNEL_MAKE_FLAGS) \
+	$(MAKE) $(PKG_JOBS) -C "$(LINUX_DIR)" \
+		$(KERNEL_MAKE_FLAGS) $(MTWIFI_KERNEL_FLAGS) \
 		M="$(PKG_BUILD_DIR)" \
-		$(foreach c, $(PKG_KCONFIG),$(if $(CONFIG_$c),CONFIG_$(c)=$(CONFIG_$(c)))) \
+		$(foreach c,$(PKG_KCONFIG),$(if $(call mtwifi_config,$(c)),CONFIG_$(c)=$(call mtwifi_config,$(c)))) \
 		modules
 endef
 
-TARGET_CFLAGS += \
-	$(foreach c, $(PKG_KCONFIG),$(if $(CONFIG_$c),-DCONFIG_$(c)=$(CONFIG_$c)))
-
-MAKE_FLAGS += \
-	$(foreach c, $(PKG_KCONFIG),$(if $(CONFIG_$c),CONFIG_$(c)=$(CONFIG_$c))) 
-
-TARGET_CFLAGS += -DCONFIG_SUPPORT_OPENWRT
-MAKE_FLAGS += CONFIG_SUPPORT_OPENWRT=y
+define Build/InstallDev
+	$(INSTALL_DIR) $(1)/$(MTWIFI_WARP_HEADERS_DIR)
+	cd $(PKG_BUILD_DIR) && $(FIND) . -type f -name '*.h' \
+		-exec $(CP) --parents {} $(1)/$(MTWIFI_WARP_HEADERS_DIR)/ \;
+endef
 
 define KernelPackage/warp/install
 	$(INSTALL_DIR) $(1)/lib/firmware
-	if [ "$$(CONFIG_WARP_CHIPSET)" = "mt7981" ]; then \
-		if [ "$$(CONFIG_WARP_NEW_FW)" = "y" ]; then \
+	if [ "$$(MTWIFI_CONFIG_WARP_CHIPSET)" = "mt7981" ]; then \
+		if [ "$$(MTWIFI_CONFIG_WARP_NEW_FW)" = "y" ]; then \
 			cp ./files/$$(MT7981_NEW_WOFW_DIR)/7981*WOCPU*_RAM_CODE_release.bin $(1)/lib/firmware/; \
 		else \
 			cp $(PKG_BUILD_DIR)/bin/7981*WOCPU*_RAM_CODE_release.bin $(1)/lib/firmware/; \
 		fi; \
-	elif [ "$$(CONFIG_WARP_CHIPSET)" = "mt7986" ]; then \
-		if [ "$$(CONFIG_WARP_NEW_FW)" = "y" ]; then \
+	elif [ "$$(MTWIFI_CONFIG_WARP_CHIPSET)" = "mt7986" ]; then \
+		if [ "$$(MTWIFI_CONFIG_WARP_NEW_FW)" = "y" ]; then \
 			cp ./files/$$(MT7986_NEW_WOFW_DIR)/7986*WOCPU*_RAM_CODE_release.bin $(1)/lib/firmware/; \
 		else \
 			cp $(PKG_BUILD_DIR)/bin/7986*WOCPU*_RAM_CODE_release.bin $(1)/lib/firmware/; \
@@ -87,4 +73,20 @@ define KernelPackage/warp/install
 	fi
 endef
 
-$(eval $(call KernelPackage,warp))
+define WarpVariant
+  define KernelPackage/warp-$(1)
+    $$(KernelPackage/warp/default)
+    TITLE+= ($(1))
+    VARIANT:=$(1)
+    PROVIDES:=kmod-warp
+    CONFLICTS:=$(addprefix kmod-warp-,$(MTWIFI_PREVIOUS_VARIANTS))
+  endef
+  define KernelPackage/warp-$(1)/install
+    $$(call KernelPackage/warp/install,$$(1))
+  endef
+  $$(eval $$(call KernelPackage,warp-$(1)))
+  MTWIFI_PREVIOUS_VARIANTS += $(1)
+endef
+# One direction per pair avoids recursive Kconfig dependencies.
+MTWIFI_PREVIOUS_VARIANTS :=
+$(foreach variant,$(MTWIFI_VARIANTS),$(eval $(call WarpVariant,$(variant))))

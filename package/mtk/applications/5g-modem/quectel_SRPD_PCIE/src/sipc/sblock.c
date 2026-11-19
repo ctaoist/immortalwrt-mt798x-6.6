@@ -28,6 +28,7 @@
 #include <linux/wait.h>
 #include <linux/sched.h>
 #include <linux/version.h>
+#include "../include/sprd_compat.h"
 #if (LINUX_VERSION_CODE > KERNEL_VERSION( 4,4,60 ))
 #include <uapi/linux/sched/types.h>
 #include <linux/sched/task.h>
@@ -919,7 +920,7 @@ int sblock_create_ex(u8 dst, u8 channel,
 			}
 		}
 		/*set the thread as a real time thread, and its priority is 11*/
-		sched_setscheduler(sblock->thread, SCHED_RR, &param);
+		sprd_sched_setscheduler(sblock->thread, SCHED_RR, &param);
 		wake_up_process(sblock->thread);
 	}
 
@@ -998,7 +999,7 @@ int sblock_pcfg_create(u8 dst, u8 channel,
 		 * Set the thread as a real time thread, and its priority
 		 * is 11.
 		 */
-		sched_setscheduler(sblock->thread, SCHED_RR, &param);
+		sprd_sched_setscheduler(sblock->thread, SCHED_RR, &param);
 		wake_up_process(sblock->thread);
 	}
 
@@ -1010,7 +1011,6 @@ void sblock_down(u8 dst, u8 channel)
 {
 	struct sblock_mgr *sblock;
 	u8 ch_index;
-    int i;
 	ch_index = sipc_channel2index(channel);
 	if (ch_index == INVALID_CHANEL_INDEX) {
 		pr_err("%s:channel %d invalid!\n", __func__, channel);
@@ -1131,7 +1131,7 @@ int sblock_pcfg_open(uint8_t dest, uint8_t channel,
 		sblock->handler = notifier;
 		sblock->data = client;
 		/*set the thread as a real time thread, and its priority is 11*/
-		sched_setscheduler(sblock->thread, SCHED_RR, &param);
+		sprd_sched_setscheduler(sblock->thread, SCHED_RR, &param);
 		wake_up_process(sblock->thread);
 	}
 

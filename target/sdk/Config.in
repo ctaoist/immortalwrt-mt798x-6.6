@@ -1,11 +1,13 @@
 config SDK
 	bool "Build the OpenWrt SDK"
-	depends on !EXTERNAL_TOOLCHAIN
+	depends on !NATIVE_TOOLCHAIN
 	default BUILDBOT
 	help
 	  This is essentially a stripped-down version of the buildroot
 	  with a precompiled toolchain. It can be used to develop and
 	  test packages for OpenWrt before including them in the buildroot
+	  External cross toolchains are copied into the SDK and must be
+	  relocatable, with their sysroot contained in TOOLCHAIN_ROOT.
 
 config SDK_LLVM_BPF
 	bool "Build the LLVM-BPF toolchain tarball"

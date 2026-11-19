@@ -1,0 +1,80 @@
+Subject: [PATCH] r8127: detect backported ethtool EEE link mode support
+
+The MediaTek 6.6 kernel backports the ethtool_keee interface from Linux
+6.9. Version checks alone select the legacy EEE representation and cause
+incompatible callback types in ethtool_ops.
+
+Detect the interface in the kernel headers and consistently select the
+existing bitmap implementation. Keep the legacy implementation for
+kernels without the new interface.
+
+--- a/src/Makefile
++++ b/src/Makefile
+@@ -56,6 +56,9 @@
+ ifneq ($(KERNELRELEASE),)
+ 	obj-m := r8127.o
+ 	r8127-objs := r8127_n.o rtl_eeprom.o rtltool.o
++	ifneq ($(shell grep -s 'struct ethtool_keee {' $(srctree)/include/linux/ethtool.h),)
++		EXTRA_CFLAGS += -DR8127_HAVE_ETHTOOL_KEEE
++	endif
+ 	ifeq ($(CONFIG_SOC_LAN), y)
+ 		EXTRA_CFLAGS += -DCONFIG_SOC_LAN
+ 	endif
+--- a/src/r8127.h
++++ b/src/r8127.h
+@@ -517,7 +517,7 @@
+ #define  MDIO_EEE_5GT  0x0002
+ #endif
+ 
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(6,9,0)
++#if LINUX_VERSION_CODE < KERNEL_VERSION(6,9,0) && !defined(R8127_HAVE_ETHTOOL_KEEE)
+ #define ethtool_keee ethtool_eee
+ #define rtl8127_ethtool_adv_to_mmd_eee_adv_cap1_t ethtool_adv_to_mmd_eee_adv_t
+ static inline u32 rtl8127_ethtool_adv_to_mmd_eee_adv_cap2_t(u32 adv)
+@@ -532,7 +532,7 @@
+ #else
+ #define rtl8127_ethtool_adv_to_mmd_eee_adv_cap1_t linkmode_to_mii_eee_cap1_t
+ #define rtl8127_ethtool_adv_to_mmd_eee_adv_cap2_t linkmode_to_mii_eee_cap2_t
+-#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(6,9,0) */
++#endif /* ethtool_keee */
+ 
+ #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,29)
+ #ifdef CONFIG_NET_POLL_CONTROLLER
+--- a/src/r8127_n.c
++++ b/src/r8127_n.c
+@@ -6911,7 +6911,7 @@
+         return to_us;
+ }
+ 
+-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,9,0)
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,9,0) || defined(R8127_HAVE_ETHTOOL_KEEE)
+ static void
+ rtl8127_adv_to_linkmode(unsigned long *mode, u64 adv)
+ {
+@@ -7157,7 +7157,7 @@
+ out:
+         return rc;
+ }
+-#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(6,9,0) */
++#endif /* ethtool_keee */
+ #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3,6,0) */
+ 
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,0,0)
+@@ -12392,7 +12392,7 @@
+                 struct ethtool_keee *eee = &tp->eee;
+ 
+                 eee->eee_enabled = eee_enable;
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(6,9,0)
++#if LINUX_VERSION_CODE < KERNEL_VERSION(6,9,0) && !defined(R8127_HAVE_ETHTOOL_KEEE)
+                 eee->supported  = SUPPORTED_100baseT_Full |
+                                   SUPPORTED_1000baseT_Full |
+                                   SUPPORTED_2500baseX_Full;
+@@ -12409,7 +12409,7 @@
+                 linkmode_set_bit(ETHTOOL_LINK_MODE_2500baseT_Full_BIT, eee->advertised);
+                 linkmode_set_bit(ETHTOOL_LINK_MODE_5000baseT_Full_BIT, eee->advertised);
+                 linkmode_set_bit(ETHTOOL_LINK_MODE_10000baseT_Full_BIT, eee->advertised);
+-#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(6,9,0) */
++#endif /* ethtool_keee */
+                 eee->tx_lpi_enabled = eee_enable;
+                 eee->tx_lpi_timer = dev->mtu + ETH_HLEN + 0x20;
+         }

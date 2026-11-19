@@ -330,7 +330,7 @@ RETURN VALUE:
    None
 ===========================================================================*/
 void QuecPrintHex(
-   void *      pBuffer,
+   const void *pBuffer,
    u16         bufSize )
 {
    char * pPrintBuf;
@@ -355,7 +355,7 @@ void QuecPrintHex(
       status = snprintf( (pPrintBuf + (pos * 3)), 
                          4, 
                          "%02X ", 
-                         *(u8 *)(pBuffer + pos) );
+                         ((const u8 *)pBuffer)[pos] );
       if (status != 3)
       {
          DBG( "snprintf error %d\n", status );

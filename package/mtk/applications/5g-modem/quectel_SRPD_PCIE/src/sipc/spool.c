@@ -14,6 +14,7 @@
 #include <linux/cdev.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
+#include <linux/version.h>
 #include <linux/platform_device.h>
 #include <linux/poll.h>
 #include <linux/slab.h>
@@ -501,7 +502,11 @@ int spool_init(void)
 {
 	int ret;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 0)
+	spool_class = class_create("spool");
+#else
 	spool_class = class_create(THIS_MODULE, "spool");
+#endif
 	if (IS_ERR(spool_class))
 		return PTR_ERR(spool_class);
 #ifndef SPRD_PCIE_USE_DTS

@@ -1,0 +1,54 @@
+Subject: [PATCH] r8152: detect backported ethtool EEE link mode support
+
+The MediaTek 6.6 kernel backports the ethtool_keee interface from Linux
+6.9. Version checks alone select the legacy EEE representation and cause
+incompatible callback types in ethtool_ops.
+
+Detect the interface in the kernel headers and consistently select the
+existing bitmap implementation. Keep the legacy implementation for
+kernels without the new interface.
+
+--- a/Makefile
++++ b/Makefile
+@@ -6,6 +6,9 @@
+ 
+ ifneq ($(KERNELRELEASE),)
+ 	obj-m	 := r8152.o
++	ifneq ($(shell grep -s 'struct ethtool_keee {' $(srctree)/include/linux/ethtool.h),)
++		EXTRA_CFLAGS += -DR8152_HAVE_ETHTOOL_KEEE
++	endif
+ #	EXTRA_CFLAGS += -DRTL8152_S5_WOL
+ #	EXTRA_CFLAGS += -DRTL8152_DEBUG
+ 
+--- a/compatibility.h
++++ b/compatibility.h
+@@ -22,7 +22,9 @@
+ #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31) */
+ 
+ #if LINUX_VERSION_CODE < KERNEL_VERSION(6,9,0)
++#ifndef R8152_HAVE_ETHTOOL_KEEE
+ 	#define ethtool_keee ethtool_eee
++#endif
+ #if LINUX_VERSION_CODE < KERNEL_VERSION(5,19,0)
+ 	#define TSO_LEGACY_MAX_SIZE		65536
+ 	#define netif_napi_add_weight		netif_napi_add
+--- a/r8152.c
++++ b/r8152.c
+@@ -24702,7 +24702,7 @@
+ }
+ 
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,6,0)
+-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,9,0)
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,9,0) || defined(R8152_HAVE_ETHTOOL_KEEE)
+ static int r8152_get_eee(struct r8152 *tp, struct ethtool_keee *eee)
+ {
+ 	__ETHTOOL_DECLARE_LINK_MODE_MASK(common);
+@@ -24894,7 +24894,7 @@
+ {
+ 	return r8152_set_eee(tp, eee);
+ }
+-#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(6,9,0) */
++#endif /* ethtool_keee */
+ 
+ static int
+ rtl_ethtool_get_eee(struct net_device *net, struct ethtool_keee *edata)

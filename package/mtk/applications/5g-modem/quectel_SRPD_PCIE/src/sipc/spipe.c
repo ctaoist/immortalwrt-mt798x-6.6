@@ -14,6 +14,7 @@
 #include <linux/cdev.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
+#include <linux/version.h>
 #include <linux/of_device.h>
 #include <linux/poll.h>
 #include <linux/platform_device.h>
@@ -439,7 +440,11 @@ int spipe_init(void)
 {
 	int ret;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 0)
+	spipe_class = class_create("spipe");
+#else
 	spipe_class = class_create(THIS_MODULE, "spipe");
+#endif
 	if (IS_ERR(spipe_class))
 		return PTR_ERR(spipe_class);
 #ifndef SPRD_PCIE_USE_DTS
@@ -468,7 +473,6 @@ void spipe_exit(void)
 
 void spipe_device_down(void) 
 {
-	int retval = -ENOMEM;
 	int i;
 
     for(i = 0; i < MAX_SPIPE_CHN_NUM; i++) {

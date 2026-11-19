@@ -1,0 +1,17 @@
+From: OpenWrt developers
+Subject: [PATCH] wifi: bound EEPROM firmware reads by the loaded image size
+
+Factory partitions may be shorter than the vendor sample image. Avoid reading
+past the firmware allocation when optional precalibration data is absent.
+
+--- a/mt_wifi/embedded/common/ee_flash.c
++++ b/mt_wifi/embedded/common/ee_flash.c
+@@ -44,7 +44,7 @@ static void flash_bin_read(void *ctrl, UCHAR *p, ULONG a, ULONG b)
+ 	/*load from request firmware*/
+ 	os_load_code_from_bin(ad, &buffer, name, &len);
+ 
+-	if (len > 0 && buffer != NULL) {
++	if (buffer != NULL && a <= len && b <= len - a) {
+ 		os_move_mem(p, buffer + a, b);
+ 	}
+ 

@@ -1,0 +1,42 @@
+Subject: [PATCH] r8101: detect backported ethtool EEE link mode support
+
+The MediaTek 6.6 kernel backports the ethtool_keee interface from Linux
+6.9. Selecting the legacy EEE callbacks by kernel version alone therefore
+causes incompatible-pointer-types errors when initializing ethtool_ops.
+
+Detect struct ethtool_keee in the kernel headers and select the existing
+link mode bitmap implementation when the interface has been backported.
+Keep the legacy implementation for kernels without the new interface.
+
+--- a/src/Makefile
++++ b/src/Makefile
+@@ -43,6 +43,9 @@ ifneq ($(KERNELRELEASE),)
+ 	r8101-objs := r8101_n.o rtl_eeprom.o rtltool.o
+ 	EXTRA_CFLAGS += -DCONFIG_R8101_NAPI
+ 	EXTRA_CFLAGS += -DCONFIG_R8101_VLAN
++	ifneq ($(shell grep -s 'struct ethtool_keee {' $(srctree)/include/linux/ethtool.h),)
++		EXTRA_CFLAGS += -DR8101_HAVE_ETHTOOL_KEEE
++	endif
+ 	ifeq ($(CONFIG_SOC_LAN), y)
+ 		EXTRA_CFLAGS += -DCONFIG_SOC_LAN
+ 	endif
+--- a/src/r8101_n.c
++++ b/src/r8101_n.c
+@@ -4752,7 +4752,7 @@ rtl8101_support_eee(struct rtl8101_private
+ }
+ 
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,6,0)
+-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,9,0)
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,9,0) || defined(R8101_HAVE_ETHTOOL_KEEE)
+ static int
+ rtl_ethtool_get_eee(struct net_device *net, struct ethtool_keee *edata)
+ {
+@@ -4934,7 +4934,7 @@ rtl_ethtool_set_eee(struct net_device *net
+ 
+         return 0;
+ }
+-#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(6,9,0) */
++#endif /* ethtool_keee */
+ #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3,6,0) */
+ 
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,0,0)

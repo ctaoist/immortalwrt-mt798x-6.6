@@ -327,8 +327,6 @@ typedef enum
                             (_x) == MHI_CLIENT_IP_HW_0_IN   ||  \
                             (_x) == MHI_CLIENT_ADPL)
 
-#define MIN(_x,_y)		   ((_x) < (_y) ? (_x): (_y))
-
 struct mhi_chan;
 struct mhi_event;
 struct mhi_ctxt;

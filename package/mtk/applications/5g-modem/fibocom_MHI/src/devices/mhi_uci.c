@@ -25,6 +25,7 @@
 #include <linux/wait.h>
 #include <linux/uaccess.h>
 #include <linux/tty.h>
+#include <linux/version.h>
 #include "../core/mhi.h"
 
 #define DEVICE_NAME "mhi"
@@ -137,26 +138,43 @@ static long mhi_uci_ioctl(struct file *file,
 {
 	struct uci_dev *uci_dev = file->private_data;
 	struct mhi_device *mhi_dev = uci_dev->mhi_dev;
+	struct ktermios termios;
 	long ret = -ERESTARTSYS;
 
 	mutex_lock(&uci_dev->mutex);
 	if (uci_dev->enabled) {
 		switch (cmd) {
 		case TCGETS:
-#ifndef TCGETS2
-			ret = kernel_termios_to_user_termios((struct termios __user *)arg, &uci_dev->termios);
-#else
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+			/* TTY conversion helpers are private since 6.1.
+			 * TCGETS transfers struct termios, not struct termios2.
+			 */
+			ret = copy_to_user((struct termios __user *)arg,
+					   &uci_dev->termios, sizeof(struct termios));
+#elif defined(TCGETS2)
 			ret = kernel_termios_to_user_termios_1((struct termios __user *)arg, &uci_dev->termios);
+#else
+			ret = kernel_termios_to_user_termios((struct termios __user *)arg, &uci_dev->termios);
 #endif
+			ret = ret ? -EFAULT : 0;
 		break;
 
 		case TCSETSF:
 		case TCSETS:
-#ifndef TCGETS2
-			ret = user_termios_to_kernel_termios(&uci_dev->termios, (struct termios __user *)arg);
+			/* Commit only after the entire userspace copy succeeds. */
+			termios = uci_dev->termios;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+			ret = copy_from_user(&termios, (struct termios __user *)arg,
+					     sizeof(struct termios));
+#elif defined(TCGETS2)
+			ret = user_termios_to_kernel_termios_1(&termios, (struct termios __user *)arg);
 #else
-			ret = user_termios_to_kernel_termios_1(&uci_dev->termios, (struct termios __user *)arg);
+			ret = user_termios_to_kernel_termios(&termios, (struct termios __user *)arg);
 #endif
+			if (ret)
+				ret = -EFAULT;
+			else
+				uci_dev->termios = termios;
 		break;
 
 		case TIOCMSET:
@@ -165,9 +183,9 @@ static long mhi_uci_ioctl(struct file *file,
 		{
 			uint32_t val;
 
-			ret = get_user(val, (uint32_t *)arg);
+			ret = get_user(val, (uint32_t __user *)arg);
 			if (ret)
-				return ret;
+				break;
 			
 			switch (cmd) {
 			case TIOCMBIS:
@@ -313,31 +331,35 @@ static ssize_t mhi_uci_write(struct file *file,
 
 		spin_unlock_bh(&uci_chan->lock);
 
- 		if (mhi_get_no_free_descriptors(mhi_dev, DMA_TO_DEVICE) == 0 && (file->f_mode & FMODE_NDELAY))
-			break;
-
-		/* wait for free descriptors */
-		ret = wait_event_interruptible(uci_chan->wq,
-			(!uci_dev->enabled) ||
-			mhi_get_no_free_descriptors
-					       (mhi_dev, DMA_TO_DEVICE) > 0);
-
-		if (ret == -ERESTARTSYS) {
-			MSG_LOG("Exit signal caught for node\n");
-			return -ERESTARTSYS;
+		if (file->f_flags & O_NONBLOCK) {
+			if (mhi_get_no_free_descriptors(mhi_dev, DMA_TO_DEVICE) == 0) {
+				ret = -EAGAIN;
+				goto write_error;
+			}
+		} else {
+			/* wait for free descriptors */
+			ret = wait_event_interruptible(uci_chan->wq,
+				(!uci_dev->enabled) ||
+				mhi_get_no_free_descriptors(mhi_dev, DMA_TO_DEVICE) > 0);
+			if (ret) {
+				MSG_LOG("Exit signal caught for node\n");
+				goto write_error;
+			}
 		}
 
 		xfer_size = min_t(size_t, count, uci_dev->mtu);
 		kbuf = kmalloc(xfer_size, GFP_KERNEL);
 		if (!kbuf) {
 			MSG_ERR("Failed to allocate memory %zd\n", xfer_size);
-			return -ENOMEM;
+			ret = -ENOMEM;
+			goto write_error;
 		}
 
 		ret = copy_from_user(kbuf, buf, xfer_size);
 		if (unlikely(ret)) {
 			kfree(kbuf);
-			return ret;
+			ret = -EFAULT;
+			goto write_error;
 		}
 
 		spin_lock_bh(&uci_chan->lock);
@@ -365,8 +387,8 @@ static ssize_t mhi_uci_write(struct file *file,
 
 sys_interrupt:
 	spin_unlock_bh(&uci_chan->lock);
-
-	return ret;
+write_error:
+	return bytes_xfered ? (ssize_t)bytes_xfered : ret;
 }
 
 static ssize_t mhi_uci_read(struct file *file,
@@ -400,7 +422,7 @@ static ssize_t mhi_uci_read(struct file *file,
 
 		spin_unlock_bh(&uci_chan->lock);
 		
-		if (file->f_mode & FMODE_NDELAY)
+		if (file->f_flags & O_NONBLOCK)
 			return -EAGAIN;
 		
 		ret = wait_event_interruptible(uci_chan->wq,
@@ -442,7 +464,7 @@ static ssize_t mhi_uci_read(struct file *file,
 	ptr = uci_buf->data + (uci_buf->len - uci_chan->rx_size);
 	ret = copy_to_user(buf, ptr, to_copy);
 	if (ret)
-		return ret;
+		return -EFAULT;
 
 	MSG_VERB("Copied %zd of %zd bytes\n", to_copy, uci_chan->rx_size);
 	uci_chan->rx_size -= to_copy;
@@ -759,7 +781,11 @@ int mhi_device_uci_init(void)
 		return ret;
 
 	mhi_uci_drv.major = ret;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 0)
+	mhi_uci_drv.class = class_create(MHI_UCI_DRIVER_NAME);
+#else
 	mhi_uci_drv.class = class_create(THIS_MODULE, MHI_UCI_DRIVER_NAME);
+#endif
 	if (IS_ERR(mhi_uci_drv.class)) {
 		unregister_chrdev(mhi_uci_drv.major, MHI_UCI_DRIVER_NAME);
 		return -ENODEV;

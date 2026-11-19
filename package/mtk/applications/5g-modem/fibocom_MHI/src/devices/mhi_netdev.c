@@ -13,6 +13,7 @@
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/netdevice.h>
+#include <linux/etherdevice.h>
 #include <linux/skbuff.h>
 #include <linux/if_arp.h>
 #include <linux/if_vlan.h>
@@ -176,12 +177,11 @@ static int mhi_netdev_macaddr_check_set(const char * val, const struct kernel_pa
     {
         if (!is_valid_ether_addr(g_mhi_netdev->ndev->dev_addr))
         {      
-            eth_random_addr(g_mhi_netdev->ndev->dev_addr);
-            g_mhi_netdev->ndev->addr_assign_type = NET_ADDR_RANDOM;
+            eth_hw_addr_random(g_mhi_netdev->ndev);
 
   	    if (!is_valid_ether_addr(g_mhi_netdev->ndev->dev_addr))
             {
-                eth_random_addr(g_mhi_netdev->ndev->dev_addr);
+                eth_hw_addr_random(g_mhi_netdev->ndev);
             }
             else
             {
@@ -878,8 +878,13 @@ static int mhi_netdev_enable_iface(struct mhi_netdev *mhi_netdev)
 		mhi_netdev_priv->mhi_netdev = mhi_netdev;
 		rtnl_unlock();
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+		netif_napi_add_weight(mhi_netdev->ndev, &mhi_netdev->napi,
+			       mhi_netdev_poll, NAPI_POLL_WEIGHT);
+#else
 		netif_napi_add(mhi_netdev->ndev, &mhi_netdev->napi,
 			       mhi_netdev_poll, NAPI_POLL_WEIGHT);
+#endif
 		ret = register_netdev(mhi_netdev->ndev);
 		if (ret) {
 			MSG_ERR("Network device registration failed\n");

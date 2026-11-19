@@ -25,6 +25,7 @@
 #include <linux/sched.h>
 #include <linux/wait.h>
 #include <linux/uaccess.h>
+#include <linux/version.h>
 #include "mhi.h"
 #include "mhi_internal.h"
 
@@ -219,7 +220,11 @@ static int __mhi_download_rddm_in_panic(struct mhi_controller *mhi_cntrl)
 		      lower_32_bits(mhi_buf->dma_addr));
 
 	mhi_write_reg(mhi_cntrl, base, BHIE_RXVECSIZE_OFFS, mhi_buf->len);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+	sequence_id = get_random_u32() & BHIE_RXVECSTATUS_SEQNUM_BMSK;
+#else
 	sequence_id = prandom_u32() & BHIE_RXVECSTATUS_SEQNUM_BMSK;
+#endif
 
 	if (unlikely(!sequence_id))
 		sequence_id = 1;
@@ -312,7 +317,11 @@ int mhi_download_rddm_img(struct mhi_controller *mhi_cntrl, bool in_panic)
 
 	mhi_write_reg(mhi_cntrl, base, BHIE_RXVECSIZE_OFFS, mhi_buf->len);
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+	sequence_id = get_random_u32() & BHIE_RXVECSTATUS_SEQNUM_BMSK;
+#else
 	sequence_id = prandom_u32() & BHIE_RXVECSTATUS_SEQNUM_BMSK;
+#endif
 	mhi_write_reg_field(mhi_cntrl, base, BHIE_RXVECDB_OFFS,
 			    BHIE_RXVECDB_SEQNUM_BMSK, BHIE_RXVECDB_SEQNUM_SHFT,
 			    sequence_id);
@@ -364,7 +373,11 @@ static int mhi_fw_load_amss(struct mhi_controller *mhi_cntrl,
 
 	mhi_write_reg(mhi_cntrl, base, BHIE_TXVECSIZE_OFFS, mhi_buf->len);
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+	mhi_cntrl->sequence_id = get_random_u32() & BHIE_TXVECSTATUS_SEQNUM_BMSK;
+#else
 	mhi_cntrl->sequence_id = prandom_u32() & BHIE_TXVECSTATUS_SEQNUM_BMSK;
+#endif
 	mhi_write_reg_field(mhi_cntrl, base, BHIE_TXVECDB_OFFS,
 			    BHIE_TXVECDB_SEQNUM_BMSK, BHIE_TXVECDB_SEQNUM_SHFT,
 			    mhi_cntrl->sequence_id);
@@ -429,7 +442,11 @@ static int mhi_fw_load_sbl(struct mhi_controller *mhi_cntrl,
 	mhi_write_reg(mhi_cntrl, base, BHI_IMGADDR_HIGH, upper_32_bits(phys));
 	mhi_write_reg(mhi_cntrl, base, BHI_IMGADDR_LOW, lower_32_bits(phys));
 	mhi_write_reg(mhi_cntrl, base, BHI_IMGSIZE, size);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+	mhi_cntrl->session_id = get_random_u32() & BHI_TXDB_SEQNUM_BMSK;
+#else
 	mhi_cntrl->session_id = prandom_u32() & BHI_TXDB_SEQNUM_BMSK;
+#endif
 	mhi_write_reg(mhi_cntrl, base, BHI_IMGTXDB, mhi_cntrl->session_id);
 	read_unlock_bh(pm_lock);
 

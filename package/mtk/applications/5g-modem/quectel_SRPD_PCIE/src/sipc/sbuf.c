@@ -28,6 +28,7 @@
 #include <asm/pgtable.h>
 #include <linux/sched.h>
 #include <linux/version.h>
+#include "../include/sprd_compat.h"
 #if (LINUX_VERSION_CODE > KERNEL_VERSION( 4,4,60 ))
 #include <uapi/linux/sched/types.h>
 #include <linux/sched/task.h>
@@ -758,7 +759,7 @@ int sbuf_create(u8 dst, u8 channel, u32 bufnum, u32 txbufsize, u32 rxbufsize)
 	sbufs[dst][ch_index] = sbuf;
 
 	/*set the thread as a real time thread, and its priority is 10*/
-	sched_setscheduler(sbuf->thread, SCHED_FIFO, &param);
+	sprd_sched_setscheduler(sbuf->thread, SCHED_FIFO, &param);
 	wake_up_process(sbuf->thread);
 
 	return 0;
@@ -1408,6 +1409,15 @@ int sbuf_register_notifier(u8 dst, u8 channel, u32 bufid,
 }
 EXPORT_SYMBOL_GPL(sbuf_register_notifier);
 
+static unsigned long sbuf_task_state(const struct task_struct *task)
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 14, 0)
+	return READ_ONCE(task->__state);
+#else
+	return task->state;
+#endif
+}
+
 void sbuf_get_status(u8 dst, char *status_info, int size)
 {
 	struct sbuf_mgr *sbuf = NULL;
@@ -1485,7 +1495,7 @@ void sbuf_get_status(u8 dst, char *status_info, int size)
 					 "%s %d: %s, state=0x%lx, pid=%d.\n",
 					 phead,
 					 cnt, task->comm,
-					 task->state, task->pid);
+					 sbuf_task_state(task), task->pid);
 				cnt++;
 				len = strlen(status_info);
 			}
@@ -1569,7 +1579,7 @@ static void sbuf_debug_task_show(struct seq_file *m,
 				   cnt);
 			seq_printf(m, ": %s, state = 0x%lx, pid = %d\n",
 				   task->comm,
-				   task->state,
+				   sbuf_task_state(task),
 				   task->pid);
 			cnt++;
 		}

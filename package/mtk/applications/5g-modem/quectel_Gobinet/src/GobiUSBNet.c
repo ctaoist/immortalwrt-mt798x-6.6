@@ -306,7 +306,11 @@ static int bridge_arp_reply(struct net_device *net, struct sk_buff *skb, uint br
             reply->ip_summed = CHECKSUM_UNNECESSARY;
             reply->pkt_type = PACKET_HOST;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0)
+            netif_rx(reply);
+#else
             netif_rx_ni(reply);
+#endif
         }
         return 1;
     }
@@ -944,7 +948,11 @@ static int qmap_register_device(sGobiUSBNet * pDev, u8 offset_id)
 #else
     qmap_net->netdev_ops = &qmap_netdev_ops;
 #endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 17, 0)
+    eth_hw_addr_set(qmap_net, real_dev->dev_addr);
+#else
     memcpy (qmap_net->dev_addr, real_dev->dev_addr, ETH_ALEN);
+#endif
 
 #ifdef QUECTEL_BRIDGE_MODE
 	priv->m_bridge_mode = !!(pDev->m_bridge_mode & BIT(offset_id));
@@ -1536,13 +1544,12 @@ static int GobiNetDriverBind(
 #endif
 
 #if 1 //def DATA_MODE_RP
-    /* make MAC addr easily distinguishable from an IP header */
-    if ((pDev->net->dev_addr[0] & 0xd0) == 0x40) {
-        /*clear this bit wil make usbnet apdater named as usbX(instead if ethX)*/
-        pDev->net->dev_addr[0] |= 0x02;	/* set local assignment bit */
-        pDev->net->dev_addr[0] &= 0xbf;	/* clear "IP" bit */
-    }
+    /* node_id is locally administered and cannot be mistaken for an IP header. */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 17, 0)
+    eth_hw_addr_set(pDev->net, node_id);
+#else
     memcpy (pDev->net->dev_addr, node_id, sizeof node_id);
+#endif
     pDev->net->flags &= ~(IFF_BROADCAST | IFF_MULTICAST);
     pDev->net->features |= (NETIF_F_VLAN_CHALLENGED);
 #endif
@@ -3149,7 +3156,11 @@ RETURN VALUE:
 ===========================================================================*/
 static int __init GobiUSBNetModInit( void )
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 0)
+   gpClass = class_create( "GobiQMI" );
+#else
    gpClass = class_create( THIS_MODULE, "GobiQMI" );
+#endif
    if (IS_ERR( gpClass ) == true)
    {
       DBG( "error at class_create %ld\n", PTR_ERR( gpClass ) );

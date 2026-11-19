@@ -183,6 +183,12 @@ BUILD_DIR:=$(BUILD_DIR_BASE)/$(TARGET_DIR_NAME)
 STAGING_DIR:=$(TOPDIR)/staging_dir/$(TARGET_DIR_NAME)
 BUILD_DIR_TOOLCHAIN:=$(BUILD_DIR_BASE)/$(TOOLCHAIN_DIR_NAME)
 TOOLCHAIN_DIR:=$(TOPDIR)/staging_dir/$(TOOLCHAIN_DIR_NAME)
+# Exported external SDKs store toolchain roots relative to the SDK directory.
+# Resolve them before library/package rules use them, including in sub-makes.
+ifeq ($(SDK)$(CONFIG_EXTERNAL_TOOLCHAIN),1y)
+  sdk_toolchain_roots := $(filter CONFIG_TOOLCHAIN_ROOT CONFIG_LIB%_ROOT_DIR CONFIG_LDD_ROOT_DIR CONFIG_LDCONFIG_ROOT_DIR,$(.VARIABLES))
+  $(foreach v,$(sdk_toolchain_roots),$(if $(filter-out /%,$(call qstrip,$($(v)))),$(eval $(v):="$(abspath $(TOPDIR)/$(call qstrip,$($(v))))")))
+endif
 STAMP_DIR:=$(BUILD_DIR)/stamp
 STAMP_DIR_HOST=$(BUILD_DIR_HOST)/stamp
 TARGET_ROOTFS_DIR?=$(if $(call qstrip,$(CONFIG_TARGET_ROOTFS_DIR)),$(call qstrip,$(CONFIG_TARGET_ROOTFS_DIR)),$(BUILD_DIR))

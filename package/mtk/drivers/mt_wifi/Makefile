@@ -11,19 +11,14 @@ PKG_NAME:=mt_wifi
 MT7981_FW_DIR := mt7981-fw-20240613
 MT7986_FW_DIR := mt7986-asus-ax6000
 
-ifeq ($(CONFIG_MTK_CHIP_MT7981),y)
-PKG_SUFFIX:=mt7981
-else
-ifeq ($(CONFIG_MTK_CHIP_MT7986),y)
-PKG_SUFFIX:=mt7986
-endif
-endif
+include $(TOPDIR)/package/mtk/mtwifi.mk
 
-PKG_BUILD_DEPENDS:=warp
-PKG_VERSION:=7.6.6.1-$(PKG_SUFFIX)
-
+PKG_BUILD_DEPENDS:=warp conninfra
+PKG_VERSION:=7.6.6.1
+PKG_RELEASE:=2
 PKG_BUILD_PARALLEL:=1
-PKG_BUILD_DIR:=$(KERNEL_BUILD_DIR)/$(PKG_NAME)
+PKG_BUILD_DIR:=$(call mtwifi_build_dir,mt_wifi)
+PKG_EXTMOD_SUBDIRS:=mt_wifi_ap
 PKG_KCONFIG:= \
 	AP_SUPPORT \
 	RT_FIRST_CARD \
@@ -272,58 +267,48 @@ PKG_KCONFIG:= \
 	WIFI_CSI_CN_INFO_SUPPORT \
 	6G_AFC_SUPPORT \
 
-PKG_CONFIG_DEPENDS:=$(foreach c, $(PKG_KCONFIG),$(if $(CONFIG_MTK_$c),CONFIG_$(c)))
-PKG_PREPARED_DEPENDS:= CONFIG_MTK_MT7986_NEW_FW CONFIG_MTK_MT7981_NEW_FW
-
 include $(INCLUDE_DIR)/package.mk
-
 
 TAR_CMD=$(HOST_TAR) -C $(1)/ $(TAR_OPTIONS)
 
-define KernelPackage/mt_wifi
+define KernelPackage/mt_wifi/default
   CATEGORY:=MTK Properties
   TITLE:=MTK wifi AP driver
-  DEPENDS:=+wifi-dats
-  DEPENDS+=+kmod-conninfra
-  DEPENDS+=+kmod-mediatek_hnat
+  SUBMENU:=Drivers
+  DEPENDS:=@TARGET_mediatek_filogic +kmod-mediatek_hnat
   FILES:=$(PKG_BUILD_DIR)/mt_wifi_ap/mt_wifi.ko \
 	$(PKG_BUILD_DIR)/mt_wifi/embedded/plug_in/warp_proxy/mtk_warp_proxy.ko
-  DEPENDS+=+kmod-warp
   AUTOLOAD:=$(call AutoProbe,mt_wifi mtk_warp_proxy)
-  SUBMENU:=Drivers
-  MENU:=1
-endef
-
-define KernelPackage/mt_wifi/config
-	source "$(SOURCE)/config.in"
+  KCONFIG:=CONFIG_WIRELESS_EXT=y CONFIG_WEXT_SPY=y CONFIG_WEXT_PRIV=y
 endef
 
 define FIXUP_NEW_MCU_FW_API
 		echo "Fixup new mcu fw API"; \
 		patch -p1 -d $(PKG_BUILD_DIR) < ./files/fix-new-mcu-fw-api.patch
-	@if [ "$$(CONFIG_MTK_MT7986_NEW_FW)" = "y" ]; then \
+	@if [ "$$(MTWIFI_CONFIG_MTK_MT7986_NEW_FW)" = "y" ]; then \
 		echo "Fixup eeprom reading API"; \
 		patch -p1 -d $(PKG_BUILD_DIR) < ./files/eeprom-flash-api.patch; \
 	fi
 endef
 
-Hooks/Prepare/Post := FIXUP_NEW_MCU_FW_API
+Hooks/Prepare/Post += FIXUP_NEW_MCU_FW_API
 
 define Build/Compile
 	+$(MAKE) $(PKG_JOBS) -C "$(LINUX_DIR)" \
-		$(KERNEL_MAKE_FLAGS) \
+		$(KERNEL_MAKE_FLAGS) $(MTWIFI_KERNEL_FLAGS) \
 		M="$(PKG_BUILD_DIR)/mt_wifi_ap" \
 		LINUX_DIR="$(KERNEL_BUILD_DIR)" \
-		$(foreach c, $(PKG_KCONFIG),$(if $(CONFIG_MTK_$c),CONFIG_$(c)=$(CONFIG_MTK_$(c)))) \
+		WARP_DIR="$(STAGING_DIR)/$(MTWIFI_WARP_HEADERS_DIR)" \
+		$(foreach c,$(PKG_KCONFIG),$(if $(call mtwifi_config,MTK_$(c)),CONFIG_$(c)=$(call mtwifi_config,MTK_$(c)))) \
 		modules
 endef
 
 define KernelPackage/mt_wifi/install
-if [ "$$(CONFIG_MTK_WIFI_FW_BIN_LOAD)" = "y" ]; then \
+if [ "$$(MTWIFI_CONFIG_MTK_WIFI_FW_BIN_LOAD)" = "y" ]; then \
 	rm -rf $(1)/lib/firmware/; \
 	$(INSTALL_DIR) $(1)/lib/firmware/; \
-	if [ "$$(CONFIG_MTK_CHIP_MT7986)" = "y" ] ; then \
-		if [ "$$(CONFIG_MTK_MT7986_NEW_FW)" = "y" ]; then \
+	if [ "$$(MTWIFI_CONFIG_MTK_CHIP_MT7986)" = "y" ] ; then \
+		if [ "$$(MTWIFI_CONFIG_MTK_MT7986_NEW_FW)" = "y" ]; then \
 			$(INSTALL_BIN) ./files/$$(MT7986_FW_DIR)/WIFI_RAM_CODE_MT7986.bin \
 			./files/$$(MT7986_FW_DIR)/WIFI_RAM_CODE_MT7986_MT7975.bin \
 			./files/$$(MT7986_FW_DIR)/mt7986_patch_e1_hdr.bin \
@@ -336,26 +321,26 @@ if [ "$$(CONFIG_MTK_WIFI_FW_BIN_LOAD)" = "y" ]; then \
 			$(PKG_BUILD_DIR)/bin/mt7986/rebb/mt7986_patch_e1_hdr_mt7975.bin \
 			$(PKG_BUILD_DIR)/bin/mt7986/rebb/7986_WACPU_RAM_CODE_release.bin $(1)/lib/firmware/; \
 		fi ; \
-		if [ "$$(CONFIG_MTK_MT7986_NEW_FW)" = "y" ]; then \
-		if [ "$$(CONFIG_MTK_WIFI_SKU_TYPE)" = "AX4200" ] ; then \
+		if [ "$$(MTWIFI_CONFIG_MTK_MT7986_NEW_FW)" = "y" ]; then \
+		if [ "$$(MTWIFI_CONFIG_MTK_WIFI_SKU_TYPE)" = "AX4200" ] ; then \
 			$(INSTALL_BIN) ./files/$$(MT7986_FW_DIR)/MT7986_ePAeLNA_EEPROM_ONEADIE_DBDC.bin \
 			$(1)/lib/firmware/; \
 		fi; \
 		else \
-		if [ "$$(CONFIG_MTK_WIFI_SKU_TYPE)" = "AX6000" -o "$$(CONFIG_MTK_WIFI_SKU_TYPE)" = "AX8400" ] ; then \
+		if [ "$$(MTWIFI_CONFIG_MTK_WIFI_SKU_TYPE)" = "AX6000" -o "$$(MTWIFI_CONFIG_MTK_WIFI_SKU_TYPE)" = "AX8400" ] ; then \
 			$(INSTALL_BIN) ./files/mt7986-default-eeprom/MT7986_iPAiLNA_EEPROM_AX6000.bin ./files/mt7986-default-eeprom/MT7986_ePAeLNA_EEPROM_AX6000.bin \
 			$(1)/lib/firmware/; \
 		fi; \
 		fi; \
 	fi; \
-	if [ "$$(CONFIG_MTK_CHIP_MT7916)" = "y" ] ; then \
+	if [ "$$(MTWIFI_CONFIG_MTK_CHIP_MT7916)" = "y" ] ; then \
 		$(INSTALL_BIN) $(PKG_BUILD_DIR)/bin/mt7916/rebb/* $(1)/lib/firmware/; \
 	fi; \
-	if [ "$$(CONFIG_MTK_CHIP_MT7981)" = "y" ] ; then \
+	if [ "$$(MTWIFI_CONFIG_MTK_CHIP_MT7981)" = "y" ] ; then \
 		$(INSTALL_BIN) ./files/mt7981-default-eeprom/MT7981_iPAiLNA_EEPROM.bin \
 		./files/mt7981-default-eeprom/e2p \
 		./files/mt7981-default-eeprom/MT7981_ePAeLNA_EEPROM.bin $(1)/lib/firmware/; \
-		if [ "$$(CONFIG_MTK_MT7981_NEW_FW)" = "y" ]; then \
+		if [ "$$(MTWIFI_CONFIG_MTK_MT7981_NEW_FW)" = "y" ]; then \
 			$(INSTALL_BIN) ./files/$$(MT7981_FW_DIR)/WIFI_RAM_CODE_MT7981.bin \
 			./files/$$(MT7981_FW_DIR)/7981_WACPU_RAM_CODE_release.bin \
 			./files/$$(MT7981_FW_DIR)/mt7981_patch_e1_hdr.bin \
@@ -370,4 +355,21 @@ if [ "$$(CONFIG_MTK_WIFI_FW_BIN_LOAD)" = "y" ]; then \
 fi
 endef
 
-$(eval $(call KernelPackage,mt_wifi))
+define MtWifiVariant
+  define KernelPackage/mt_wifi-$(1)
+    $$(KernelPackage/mt_wifi/default)
+    TITLE+= ($(1))
+    VARIANT:=$(1)
+    PROVIDES:=kmod-mt_wifi
+    DEPENDS+=+kmod-conninfra-$(1) +kmod-warp-$(1) +wifi-dats-$(1)
+    CONFLICTS:=$(addprefix kmod-mt_wifi-,$(MTWIFI_PREVIOUS_VARIANTS)) kmod-mt7915e
+  endef
+  define KernelPackage/mt_wifi-$(1)/install
+    $$(call KernelPackage/mt_wifi/install,$$(1))
+  endef
+  $$(eval $$(call KernelPackage,mt_wifi-$(1)))
+  MTWIFI_PREVIOUS_VARIANTS += $(1)
+endef
+# One direction per pair avoids recursive Kconfig dependencies.
+MTWIFI_PREVIOUS_VARIANTS :=
+$(foreach variant,$(MTWIFI_VARIANTS),$(eval $(call MtWifiVariant,$(variant))))
